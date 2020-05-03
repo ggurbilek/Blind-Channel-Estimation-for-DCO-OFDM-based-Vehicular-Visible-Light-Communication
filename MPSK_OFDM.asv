@@ -4,7 +4,7 @@ clc
 close all
 
 %% Local Variables: number of bits, samples, guard symbols, temp variables for interfunction calls
-psk=4;
+psk=64;
 nfft=64; %fft size
 subcar=48; %number of data subcarriers
 nbitpsk = log2(psk);
@@ -113,7 +113,7 @@ for n=1:10
         % demodulate the psk data in the ofdm symbols
         bin_data_rx = reshape(de2bi(reshape(pskdemod(serdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         BER(n,k)=sum((data(bits)~=bin_data_rx(bits)))/length(bits);
         
         
@@ -142,7 +142,7 @@ for n=1:10
         Bt=(0:(nbitsym*nsym*2-1))*dt;
         Btheta=(theta_0(k)./(d0+v*Bt+0.5*a*Bt.^2).^3.346).';
         Bch_data=Bofdm_tx.*Btheta;
-               
+                
         
         
         %% 
@@ -181,9 +181,12 @@ for n=1:10
         % demodulate the psk data in the ofdm symbols
         Bbin_data_rx = reshape(de2bi(reshape(pskdemod(Bserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         BBER(n,k)=sum((data(Bbits)~=Bbin_data_rx(Bbits)))/length(Bbits);
-       
+        
+%         BEsN0_dB(k)=10*log10(BEsN0(k));
+%         BEbN0(k)=BEsN0(k)/nbitpsk;
+%         BEbN0_dB(k)=10*log10(BEbN0(k));
 
         %% THIS IS FOR COMB TYPE CE ALGORITHM (1 data symbol, 1 pilot symbol)
         % TX
@@ -208,7 +211,7 @@ for n=1:10
         %%
         % Channel Effect 1  
         Ct=(0:(nbitsym*nsym*2-1))*dt;
-        Ctheta=(theta_0(k)./(d0+v*Ct+0.5*a*Ct.^2).^3.346).';
+        Ctheta=(theta_0(k)./(d0+v*Ct+0.5*a*Ct.^2).^3.34).';
         Cch_data=Cofdm_tx.*Ctheta;
         
         
@@ -230,29 +233,31 @@ for n=1:10
         % Channel Effect 2
         Cch_rem_pilot = reshape((Crem_pilot.*alpha).',1,[])+noise2;
                
-        % Parallelize data
-        Cpardata=reshape(Cch_rem_pilot,subcar/2,[]).';
+        % parallalize ch data
+        Cpardata=reshape(Cch_rem_pilot, 2,[]).';
 
         % separate data and training matrix
-        Crecpilot=abs(Cpardata(:,1:2:end));
-        Crecdata=Cpardata(:,2:2:end);
+        Crecpilot=abs(Cpardata(:,1));
+        Crecdata=Cpardata(:,2);
         
         % calculate SNR
         CEsN0(n,k)=mean(abs(Cch_rem_pilot(symbols)).^2)/mean(abs(noise2).^2);
 
         % estimate psk_data_tx
-        tmp= interp1(1:(subcar/2)/2,Crecpilot.',1:0.5:((subcar/2)+0.5),'linear','extrap');
-        Cresp=tmp(2:2:subcar/2,:).';
-        Cqam_data_rx=Crecdata./Cresp;
+        Cresp=reshape(interp(Crecpilot,2),2,[]).';
+        Cpsk_data_rx=Crecdata./Cresp(:,2);
 
         % serialize psk data
-        Cserdata=reshape(Cqam_data_rx.', 1,[]).';
+        Cserdata=reshape(Cpsk_data_rx.', subcar*nsym/2,[]).';
 
         % demodulate the psk data in the ofdm symbols
         Cbin_data_rx = reshape(de2bi(reshape(pskdemod(Cserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         CBER(n,k)=sum((data(Cbits)~=Cbin_data_rx(Cbits)))/length(Cbits);
+%         CEsN0_dB(k)=10*log10(CEsN0(k));
+%         CEbN0(k)=CEsN0(k)/nbitpsk;
+%         CEbN0_dB(k)=10*log10(CEbN0(k));
 
         %% THIS IS FOR BLOCK TYPE CE ALGORITHM (2 data packet, 1 pilot packet)
         % TX
@@ -277,7 +282,7 @@ for n=1:10
         %%
         % Channel Effect 1     
         BBt=(0:(nbitsym*nsym*1.5-1))*dt;
-        BBtheta=(theta_0(k)./(d0+v*BBt+0.5*a*BBt.^2).^3.346).';
+        BBtheta=(theta_0(k)./(d0+v*BBt+0.5*a*BBt.^2).^3.34).';
         BBch_data=BBofdm_tx.*BBtheta;
                 
         
@@ -317,8 +322,11 @@ for n=1:10
         % demodulate the psk data in the ofdm symbols
         BBbin_data_rx = reshape(de2bi(reshape(pskdemod(BBserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         BBBER(n,k)=sum((data(BBbits)~=BBbin_data_rx(BBbits)))/length(BBbits);
+%         BBEsN0_dB(k)=10*log10(BBEsN0(k));
+%         BBEbN0(k)=BBEsN0(k)/nbitpsk;
+%         BBEbN0_dB(k)=10*log10(BBEbN0(k));
 
 
         %% THIS IS FOR COMB TYPE CE ALGORITHM (2 data symbol, 1 pilot symbol)
@@ -342,11 +350,11 @@ for n=1:10
         CCofdm_tx = reshape(CCcyclic_add_data.',nbitsym*nsym*1.5,1);
 
         %%
-        % Channel Effect 1  
-        CCt=(0:(nbitsym*nsym*(1+1/2)-1))*dt;
-        CCtheta=(theta_0(k)./(d0+v*CCt+0.5*a*CCt.^2).^3.346).';
+        % Channel Effect 1    
+        CCt=(0:(nbitsym*nsym*1.5-1))*dt;
+        CCtheta=(theta_0(k)./(d0+v*CCt+0.5*a*CCt.^2).^3.34).';
         CCch_data=CCofdm_tx.*CCtheta;
-                        
+                
         
         %% 
         % Receiver        
@@ -366,28 +374,30 @@ for n=1:10
         CCch_rem_pilot = reshape((CCrem_pilot.*alpha).',1,[])+noise3;
      
         % parallalize ch data
-        CCpardata=reshape(CCch_rem_pilot,subcar/2,[]).';
+        CCpardata=reshape(CCch_rem_pilot, 3,[]).';
 
-       % separate data and training matrix
-        CCrecpilot=abs(CCpardata(:,1:3:end));
-        CCrecdata=CCpardata(:,sort([2:3:subcar/2 3:3:subcar/2]));
+        % separate data and training matrix
+        CCrecdata=CCpardata(:,2:3);
+        CCrecpilot=abs(CCpardata(:,1));
         
         % calculate SNR
         CCEsN0(n,k)=mean(abs(CCch_rem_pilot(symbols)).^2)/mean(abs(noise3).^2);
 
         % estimate psk_data_tx
-        tmp= interp1(1:3:subcar/2,CCrecpilot.',1:subcar/2,'linear','extrap');
-        CCresp=tmp(sort([2:3:subcar/2 3:3:subcar/2]),:).';
-        CCqam_data_rx=CCrecdata./CCresp;
+        CCresp=reshape(interp(CCrecpilot,3),3,[]).';
+        CCpsk_data_rx=CCrecdata./CCresp(:,2:3);
 
         % serialize psk data
-        CCserdata=reshape(CCqam_data_rx.', 1,[]).';
+        CCserdata=reshape(CCpsk_data_rx.', subcar*nsym/2,[]).';
 
         % demodulate the psk data in the ofdm symbols
         CCbin_data_rx = reshape(de2bi(reshape(pskdemod(CCserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         CCBER(n,k)=sum((data(CCbits)~=CCbin_data_rx(CCbits)))/length(CCbits);
+%         CCEsN0_dB(k)=10*log10(CCEsN0(k));
+%         CCEbN0(k)=CCEsN0(k)/nbitpsk;
+%         CCEbN0_dB(k)=10*log10(CCEbN0(k));
 
         %% THIS IS FOR BLOCK TYPE CE ALGORITHM (3 data packet, 1 pilot packet)
         % TX
@@ -412,7 +422,7 @@ for n=1:10
         %%
         % Channel Effect 1     
         BBBt=(0:(nbitsym*nsym*(1+1/3)-1))*dt;
-        BBBtheta=(theta_0(k)./(d0+v*BBBt+0.5*a*BBBt.^2).^3.346).';
+        BBBtheta=(theta_0(k)./(d0+v*BBBt+0.5*a*BBBt.^2).^3.34).';
         BBBch_data=BBBofdm_tx.*BBBtheta;
                 
         
@@ -452,8 +462,11 @@ for n=1:10
         % demodulate the psk data in the ofdm symbols
         BBBbin_data_rx = reshape(de2bi(reshape(pskdemod(BBBserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         BBBBER(n,k)=sum((data(BBBbits)~=BBBbin_data_rx(BBBbits)))/length(BBBbits);
+%         BBBEsN0_dB(k)=10*log10(BBBEsN0(k));
+%         BBBEbN0(k)=BBBEsN0(k)/nbitpsk;
+%         BBBEbN0_dB(k)=10*log10(BBBEbN0(k));
 
 %% THIS IS FOR COMB TYPE CE ALGORITHM (3 data symbol, 1 pilot symbol)
         % TX
@@ -476,9 +489,9 @@ for n=1:10
         CCCofdm_tx = reshape(CCCcyclic_add_data.',nbitsym*nsym*(1+1/3),1);
 
         %%
-        % Channel Effect 1  
+        % Channel Effect 1    
         CCCt=(0:(nbitsym*nsym*(1+1/3)-1))*dt;
-        CCCtheta=(theta_0(k)./(d0+v*CCCt+0.5*a*CCCt.^2).^3.346).';
+        CCCtheta=(theta_0(k)./(d0+v*CCCt+0.5*a*CCCt.^2).^3.34).';
         CCCch_data=CCCofdm_tx.*CCCtheta;
                 
         
@@ -500,28 +513,30 @@ for n=1:10
         CCCch_rem_pilot = reshape((CCCrem_pilot.*alpha).',1,[])+noise4;
      
         % parallalize ch data
-        CCCpardata=reshape(CCCch_rem_pilot,subcar/2,[]).';
+        CCCpardata=reshape(CCCch_rem_pilot, 4,[]).';
 
         % separate data and training matrix
-        CCCrecpilot=abs(CCCpardata(:,1:4:end));
-        CCCrecdata=CCCpardata(:,sort([2:4:subcar/2 3:4:subcar/2 4:4:subcar/2]));
+        CCCrecdata=CCCpardata(:,2:4);
+        CCCrecpilot=abs(CCCpardata(:,1));
         
         % calculate SNR
         CCCEsN0(n,k)=mean(abs(CCCch_rem_pilot(symbols)).^2)/mean(abs(noise4).^2);
 
         % estimate psk_data_tx
-        tmp= interp1(1:4:subcar/2,CCCrecpilot.',1:subcar/2,'linear','extrap');
-        CCCresp=tmp(sort([2:4:subcar/2 3:4:subcar/2 4:4:subcar/2]),:).';
-        CCCqam_data_rx=CCCrecdata./CCCresp;
+        CCCresp=reshape(interp(CCCrecpilot,4),4,[]).';
+        CCCpsk_data_rx=CCCrecdata./CCCresp(:,2:4);
 
         % serialize psk data
-        CCCserdata=reshape(CCCqam_data_rx.', 1,[]).';
+        CCCserdata=reshape(CCCpsk_data_rx.', subcar*nsym/2,[]).';
 
         % demodulate the psk data in the ofdm symbols
         CCCbin_data_rx = reshape(de2bi(reshape(pskdemod(CCCserdata, psk),1,[])).',1,[]);
 
-        % calculate BER
+        % calculate SNR and BER
         CCCBER(n,k)=sum((data(CCCbits)~=CCCbin_data_rx(CCCbits)))/length(CCCbits);
+%         CCEsN0_dB(k)=10*log10(CCEsN0(k));
+%         CCEbN0(k)=CCEsN0(k)/nbitpsk;
+%         CCEbN0_dB(k)=10*log10(CCEbN0(k));
 
     end
    
@@ -553,19 +568,19 @@ CCCBER=mean(CCCBER);
 
 %% Plot SNR vs. BER for block type CE
 figure
-semilogy(BEbN0_dB,BBER,'p-')
+semilogy(BEbN0_dB,BBER)
 hold on
-semilogy(BBEbN0_dB,BBBER,'s-') 
+semilogy(BBEbN0_dB,BBBER) 
 hold on
-semilogy(BBBEbN0_dB,BBBBER,'d-') 
+semilogy(BBBEbN0_dB,BBBBER) 
 hold on
-semilogy(CEbN0_dB,CBER,'+-')
+semilogy(CEbN0_dB,CBER)
 hold on
-semilogy(CCEbN0_dB,CCBER,'x-')
+semilogy(CCEbN0_dB,CCBER)
 hold on
-semilogy(CCCEbN0_dB,CCCBER,'*-')
+semilogy(CCCEbN0_dB,CCCBER)
 hold on
-semilogy(EbN0_dB,BER,'^-')
+semilogy(EbN0_dB,BER)
 
 legend('Block type CE (1 data - 1 pilot packet)','Block type CE (2 data - 1 pilot packet)','Block type CE (3 data - 1 pilot packet)',...
     'Comb type CE (1 data - 1 pilot symbol)','Comb type CE (2 data - 1 pilot symbol)','Comb type CE (3 data - 1 pilot symbol)','Proposed CE')

@@ -71,7 +71,7 @@ for p=1:3
             tt=t((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
             tt0(k)=t((nbitsym*nsym)*(k-1)+1);
             dd=d((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
-            theta=(theta_0./dd.^3.34).';
+            theta=(theta_0./dd.^3.346).';
             ch_data=ofdm_tx.*theta;
 
             %% 
@@ -141,7 +141,7 @@ for p=1:3
             tt=t((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
             tt0(k)=t((nbitsym*nsym)*(k-1)+1);
             dd=d((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
-            theta=(theta_0./dd.^3.34).';
+            theta=(theta_0./dd.^3.346).';
             ch_data=ofdm_tx.*theta;
 
 

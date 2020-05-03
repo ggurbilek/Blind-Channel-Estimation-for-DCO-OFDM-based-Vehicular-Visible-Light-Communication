@@ -1,7 +1,7 @@
 %% DCO-OFDM, Only Half Data Subcarriers are used for QAM Data for Hermitian Symmetry
 clear all
 clc
-close all
+% close all
 
 %% Local Variables: number of bits, samples, guard symbols, temp variables for interfunction calls
 qam=64;
