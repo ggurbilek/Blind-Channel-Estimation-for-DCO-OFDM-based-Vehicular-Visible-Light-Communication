@@ -4,7 +4,7 @@ clc
 close all
 
 %% Local Variables: number of bits, samples, guard symbols, temp variables for interfunction calls
-psk=4;
+psk=16;
 nfft=64; %fft size
 subcar=48; %number of data subcarriers
 nbitpsk = log2(psk);
@@ -99,7 +99,8 @@ for n=1:10
         pardata=reshape(ch_rem_pilot, subcar/2,[]).';
 
         % estimate theta
-        est_theta=sum((abs(pardata)./alpha).')./(subcar/2);
+        pskconst=pskmod(0:(psk-1),psk);
+        est_theta=sum(((abs(real(pardata))+abs(imag(pardata)))./alpha).')./(mean(abs(real(pskconst))+abs(imag(pskconst)))*subcar/2);
 
         % calculate theta*data
         td=(pardata./alpha).';

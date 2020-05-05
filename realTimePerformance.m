@@ -8,12 +8,9 @@ figure
 plot(vtime,dist)
 xlabel('Time (s)')
 ylabel('Distance (m)')
-% 
-% t=0:0.0000005:vtime(end);
-% d=interp1(vtime,dist,t);
 
-t=0:0.0000005:20;
-d=interp1(vtime(1:2001),dist(1:2001),t);
+t=0:0.0000005:vtime(end);
+d=interp1(vtime,dist,t);
 
 const=[4 16 64];
 for p=1:3
@@ -37,13 +34,17 @@ for p=1:3
     symbols=1:nsym*subcar/2;
     bits=1:nsym*nbitqam*subcar/2;
 
-    % rescaled theta for dynamic case due to the normalization of the noise power
-    theta_0=2000;
+    % theta
+    theta_0=db2mag(8.114+30); %dBm to dBW
 
+    % noise power (receiver sensitivity)
+    np_dbm=-95;
+    np_dbW=np_dbm+30;
+    np=db2mag(np_dbW);
+    
     for n=1:10
-        %Noise vectors are created with a normalized power. One can think that
-        %the normaliation factor is rescaled with noise power.
-        noise1=normrnd(0,1,[1,subcar*nsym/2])+i*normrnd(0,1,[1,subcar*nsym/2]);
+        
+        noise1=np*(normrnd(0,1,[1,subcar*nsym/2])+i*normrnd(0,1,[1,subcar*nsym/2]));
 
         for k=1:floor(length(t)/(nbitsym*nsym))
             %% THIS IS FOR THE PROPOSED ALGORITHM
@@ -98,7 +99,8 @@ for p=1:3
             pardata=reshape(ch_rem_pilot, subcar/2,[]).';
 
             % estimate theta
-            est_theta=sum((abs(pardata)./alpha).')./(mean(abs(qammod(0:(qam-1),qam,'UnitAveragePower',true)))*subcar/2);
+            qamconst=qammod(0:(qam-1),qam,'UnitAveragePower',true);
+            est_theta=sum(((abs(real(pardata))+abs(imag(pardata)))./alpha).')./(mean(abs(real(qamconst))+abs(imag(qamconst)))*subcar/2);
 
             % calculate theta*data
             td=(pardata./alpha).';
@@ -169,7 +171,8 @@ for p=1:3
             pardata=reshape(ch_rem_pilot, subcar/2,[]).';
 
             % estimate theta
-            est_theta=sum((abs(pardata)./alpha).')./(subcar/2);
+            pskconst=pskmod(0:(qam-1),qam);
+            est_theta=sum(((abs(real(pardata))+abs(imag(pardata)))./alpha).')./(mean(abs(real(pskconst))+abs(imag(pskconst)))*subcar/2);
 
             % calculate theta*data
             td=(pardata./alpha).';
@@ -207,8 +210,6 @@ pber(p,:)=PBER;
 end
 %% Plot SNR vs. BER for block type CE
 figure
-% semilogy(qsnr(1,:),qber(1,:),'*')
-% hold on
 semilogy(qsnr(2,:),qber(2,:),'d')
 hold on
 semilogy(qsnr(3,:),qber(3,:),'s')
@@ -220,13 +221,10 @@ hold on
 semilogy(psnr(3,:),pber(3,:),'^')
 xlabel('Eb/N0 (dB)')
 ylabel('BER')
-%legend('4QAM','16QAM','64QAM','QPSK','16PSK','64PSK')
 legend('16-QAM','64-QAM','QPSK','16-PSK','64-PSK')
 grid on
 
 figure
-% semilogy(tt0,2*(1-qber(1,:)))
-% hold on
 semilogy(tt0,2*(1-pber(1,:)))
 hold on
 semilogy(tt0,4*(1-pber(2,:)))
@@ -238,13 +236,9 @@ hold on
 semilogy(tt0,6*(1-qber(3,:)))
 xlabel('Time (s)')
 ylabel('Average Throughput (bits per subcarrier)')
-legend('QPSK','16-PSK','64-PSK','16-QAM','64-QAM')
+legend('QPSK/4-PSK','16-PSK','64-PSK','16-QAM','64-QAM')
 ylim([0 6.5])
 grid on
-%%
-% SNR vs. theta estimation accuracy
-% SNR vs. BER graphs at different M-QAM
-% Block type estimation vs. our estimation
 
 
 
