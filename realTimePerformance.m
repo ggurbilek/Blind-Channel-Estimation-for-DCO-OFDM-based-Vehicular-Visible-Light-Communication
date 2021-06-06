@@ -12,8 +12,9 @@ ylabel('Distance (m)')
 t=0:0.0000005:vtime(end);
 d=interp1(vtime,dist,t);
 
-const=[4 16 64];
-for p=1:3
+const=[4 8 16 32 64];
+for p=1:5
+    
     %% Local Variables: number of bits, samples, guard symbols, temp variables for interfunction calls
     qam=const(p);
     nfft=64; %fft size
@@ -35,7 +36,7 @@ for p=1:3
     bits=1:nsym*nbitqam*subcar/2;
 
     % theta
-    theta_0=db2mag(8.114+30); %dBm to dBW
+    theta_0=db2mag(8.114+20); %dBm to dBW
 
     % noise power (receiver sensitivity)
     np_dbm=-95;
@@ -117,80 +118,6 @@ for p=1:3
             % calculate SNR and BER
             BER(n,k)=sum((data(bits)~=bin_data_rx(bits)))/length(bits);
 
-
-            %% THIS IS FOR THE PROPOSED ALGORITHM (PSK)
-            % TX
-            % parallalize bin data and do qam modulation
-            psk_data_tx = pskmod(bi2de(reshape(data, nbitqam,[]).').',qam);
-
-            % parallalize qam data for collective ifft
-            par_data = reshape(psk_data_tx.', subcar/2, nsym).';
-
-            % generate hermitian symmetric data and insert guard at non-data subcarrier locations
-            pilot_ins_data=[zeros(nsym,guard) par_data zeros(nsym,1) conj(flip(par_data.').') zeros(nsym,guard-1)] ;
-
-            % take ifft of all the ofdm symbols in the frame
-            ifft_data = sqrt(nfft*nfft/subcar)*ifft(ifftshift(pilot_ins_data.',1)).';
-
-            % add cyclic prefix to each ofdm symbol
-            cyclic_add_data = [ifft_data(:,((nfft - ncp +1):nfft)) ifft_data];
-
-            % arrange symbols row wise and searialize to transmit time domain signal
-            ofdm_tx = reshape(cyclic_add_data.',nbitsym*nsym,1);
-
-            %%
-            % Channel Effect 1
-            tt=t((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
-            tt0(k)=t((nbitsym*nsym)*(k-1)+1);
-            dd=d((nbitsym*nsym)*(k-1)+1:(k*nbitsym*nsym));
-            theta=(theta_0./dd.^3.346).';
-            ch_data=ofdm_tx.*theta;
-
-
-            %% 
-            % Receiver        
-            %parallalize received data
-            par_rec_data = reshape(ch_data.', nbitsym, nsym).';
-
-            % remove cyclic prefix
-            cyclic_pre_rem=par_rec_data(:,ncp+1:end);
-
-            % take fft of time domain ofdm symbols
-            fft_data = fftshift(fft(cyclic_pre_rem.'),1).'/sqrt(nfft*nfft/subcar);
-
-            % remove the guard to get the qam data
-            rem_pilot = fft_data(:,guard+(1:subcar/2));
-
-            % Channel Effect 2
-            ch_rem_pilot = reshape((rem_pilot.*alpha).',1,[])+noise1;
-
-            % calculate SNR
-            PEsN0(n,k)=mean(abs(ch_rem_pilot(symbols)).^2)/mean(abs(noise1).^2);
-
-            % parallalize ch data
-            pardata=reshape(ch_rem_pilot, subcar/2,[]).';
-
-            % estimate theta
-            pskconst=pskmod(0:(qam-1),qam);
-            est_theta=sum(((abs(real(pardata))+abs(imag(pardata)))./alpha).')./(mean(abs(real(pskconst))+abs(imag(pskconst)))*subcar/2);
-
-            % calculate theta*data
-            td=(pardata./alpha).';
-
-            % estimate qam_data_tx
-            psk_data_rx=td./est_theta;
-
-            % serialize qam data
-            serdata=reshape(psk_data_rx, subcar*nsym/2,[]).';
-
-            % demodulate the qam data in the ofdm symbols
-            bin_data_rx = reshape(de2bi(reshape(pskdemod(serdata, qam),1,[])).',1,[]);
-
-            % calculate SNR and BER
-            PBER(n,k)=sum((data(bits)~=bin_data_rx(bits)))/length(bits);
-
-
-
         end
 
     end
@@ -198,46 +125,47 @@ for p=1:3
     %% calculate SNR and BER
     EbN0=mean(EsN0)/nbitqam;
     EbN0_dB=10*log10(EbN0);
-    PEbN0=mean(PEsN0)/nbitqam;
-    PEbN0_dB=10*log10(PEbN0);
     BER=mean(BER);
-    PBER=mean(PBER);
 
 qsnr(p,:)=EbN0_dB;
 qber(p,:)=BER;
-psnr(p,:)=PEbN0_dB;
-pber(p,:)=PBER;
+
 end
+
+save('sumober.mat','qsnr','qber')
+
 %% Plot SNR vs. BER for block type CE
 figure
-semilogy(qsnr(2,:),qber(2,:),'d')
+semilogy(qsnr(1,:),qber(1,:),'d')
 hold on
-semilogy(qsnr(3,:),qber(3,:),'s')
+semilogy(qsnr(2,:),qber(2,:),'s')
 hold on
-semilogy(psnr(1,:),pber(1,:),'p')
+semilogy(qsnr(3,:),qber(3,:),'p')
 hold on
-semilogy(psnr(2,:),pber(2,:),'h')
+semilogy(qsnr(4,:),qber(4,:),'h')
 hold on
-semilogy(psnr(3,:),pber(3,:),'^')
+semilogy(qsnr(5,:),qber(5,:),'^')
 xlabel('Eb/N0 (dB)')
 ylabel('BER')
-legend('16-QAM','64-QAM','QPSK','16-PSK','64-PSK')
+legend('4-QAM','8-QAM','16-QAM','32-QAM','64-QAM')
 grid on
 
+% (nbitqam*subcar/2)/(nfft+ncp)
+
 figure
-semilogy(tt0,2*(1-pber(1,:)))
+semilogy(tt0,(1-qber(1,:))*(2*subcar/2)/(nfft+ncp),'vm')
 hold on
-semilogy(tt0,4*(1-pber(2,:)))
+semilogy(tt0,(1-qber(2,:))*(3*subcar/2)/(nfft+ncp),'<g')
 hold on
-semilogy(tt0,6*(1-pber(3,:)))
+semilogy(tt0,(1-qber(3,:))*(4*subcar/2)/(nfft+ncp),'>b')
 hold on
-semilogy(tt0,4*(1-qber(2,:)))
+semilogy(tt0,(1-qber(4,:))*(5*subcar/2)/(nfft+ncp),'^c')
 hold on
-semilogy(tt0,6*(1-qber(3,:)))
+semilogy(tt0,(1-qber(5,:))*(6*subcar/2)/(nfft+ncp),'*r')
 xlabel('Time (s)')
-ylabel('Average Throughput (bits per subcarrier)')
-legend('QPSK/4-PSK','16-PSK','64-PSK','16-QAM','64-QAM')
-ylim([0 6.5])
+ylabel('Spectral Efficiency (C [bits/s/Hz])')
+legend('4-QAM','8-QAM','16-QAM','32-QAM','64-QAM')
+%ylim([0 6.5])
 grid on
 
 
